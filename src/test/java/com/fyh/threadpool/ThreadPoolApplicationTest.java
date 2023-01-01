@@ -30,6 +30,7 @@ class ThreadPoolApplicationTest {
         log.info("all work finished");
     }
 
+
     @Test
     public void howToUse() {
         StretchableThreadPool pool = new StretchableThreadPool();
