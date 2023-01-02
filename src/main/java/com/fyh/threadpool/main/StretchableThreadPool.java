@@ -120,6 +120,7 @@ public class StretchableThreadPool {
             // 上来就先加锁，保证下面操作的原子性
             lock.lock();
 
+
             // 如果任务队列中有任务就要取出来执行
             if (!workQueue.isEmpty()) {
                 // 1.从任务队列取出当前任务
@@ -146,15 +147,12 @@ public class StretchableThreadPool {
             try {
                 // 条件等待超时
                 if (!waitingRoomCondition.await(maxWaitSeconds, TimeUnit.SECONDS)) {
-                    // 线程能自杀（满足可伸缩的范围）-
+                    // 线程能自杀（满足可伸缩的范围）
                     if (nowThreadCount > minThreadCount) {
                         // 结束线程（找到最后一个可用的线程放在当前要杀死的线程处），移除最后一个线程
                         int nowThreadIndex = ThreadPoolUtils.getIndexOfCurrentThread(this);
-                        int lastThreadIndex = nowThreadCount - 1;
-                        Collections.swap(workers, lastThreadIndex, nowThreadIndex);
-                        Collections.swap(workersSign, lastThreadIndex, nowThreadIndex);
-                        workers.remove(lastThreadIndex);
-                        workersSign.remove(lastThreadIndex);
+                        workers.remove(nowThreadIndex);
+                        workersSign.remove(nowThreadIndex);
                         // 当前线程数减少1个
                         --nowThreadCount;
                         log.info("* thread {} end, left {} threads in pool", Thread.currentThread().getName(), nowThreadCount);
