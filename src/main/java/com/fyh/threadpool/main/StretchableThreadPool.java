@@ -120,7 +120,6 @@ public class StretchableThreadPool {
             // 上来就先加锁，保证下面操作的原子性
             lock.lock();
 
-
             // 如果任务队列中有任务就要取出来执行
             if (!workQueue.isEmpty()) {
                 // 1.从任务队列取出当前任务
