@@ -52,7 +52,7 @@ class ActualWork implements Runnable {
 
 #### 🔨 调度原则（线程自身调度自身）
 
-<img src="img/task-arrangement.svg" alt="task-arrangement" style="zoom:80%;" />
+<img src="img/task-arrangement.svg" alt="task-arrangement" style="zoom: 67%;" />
 
 > 每个线程均在一个 while(true) 循环中不断循环等待任务，调度主要分为以下情况
 
