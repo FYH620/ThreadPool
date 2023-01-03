@@ -8,15 +8,6 @@ import java.util.List;
 
 @Slf4j
 public class ThreadPoolUtils {
-    /**
-     * 获取当前可伸缩线程池中有多少个可用的线程（包含任何状态的线程）
-     *
-     * @param pool:线程池对象
-     * @return:线程数目
-     */
-    public static int getTotalThreadCount(StretchableThreadPool pool) {
-        return pool.getNowThreadCount();
-    }
 
     /**
      * 获取当前处于等待状态（可以处理新任务）的线程数目

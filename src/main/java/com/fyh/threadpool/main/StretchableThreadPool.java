@@ -18,7 +18,7 @@ public class StretchableThreadPool {
     // 任务队列
     private Queue<Runnable> workQueue;
 
-    // 每一个线程的状态（包含等待任务、正在忙碌、已经无效三种状态）
+    // 每一个线程的状态（包含等待任务、正在忙碌两种状态）
     private List<WorkerState> workersSign;
 
     // 该线程池的互斥锁（这把锁同时锁任务队列和线程池本身）
@@ -32,14 +32,14 @@ public class StretchableThreadPool {
     private int maxThreadCount;
     private int nowThreadCount;
 
-    // 一个线程等三秒仍然没有任务就自杀
+    // 一个线程等maxWaitSeconds秒仍然没有任务就自杀
     private int maxWaitSeconds;
 
-    // 线程池按照一次增加5个进行动态扩充
+    // 线程池按照一次增加addOnceThreadCount个进行动态扩充
     private int addOnceThreadCount;
 
     // 线程名称递增ID号
-    private int threadIncrementId = 1;
+    private int threadIncrementId;
 
 
     /**
@@ -56,6 +56,7 @@ public class StretchableThreadPool {
         this.maxWaitSeconds = maxWaitSeconds;
         this.addOnceThreadCount = addOnceThreadCount;
         this.nowThreadCount = 0;
+        this.threadIncrementId = 1;
 
         // 2.初始化线程池列表、任务队列、线程池标志
         this.workers = new ArrayList<>(maxThreadCount);
