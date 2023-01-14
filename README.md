@@ -1,4 +1,57 @@
-## Java 可伸缩线程池 (StretchableThreadPool)
+## 需要原始版本的请切换到 initial-implement 分支，最新的 main 分支是来自 [supermarketss](https://github.com/supermarketss) 的第二种伸缩策略的实现，API 有所改变，更新规则与使用方法如下
+
+- 使用了 JUC 线程安全数据结构，**性能更优**
+- 扩充算法的新实现：专门再开一个**监控线程**在循环内等 500ms 检测一下任务队列任务数量是否比线程池最大线程数目多，且满足当前线程数量不超过最大线程数量就一次扩充一个线程
+
+- 使用方法
+
+  ```java
+  @Slf4j
+  @SpringBootTest
+  class ThreadPoolApplicationTest {
+  
+      @Test
+      public void testStretchablePool() throws InterruptedException {
+          // 1.初始化线程池（线程池在这里需要传入四个初始化参数）
+          // (1):coreThreadCount 线程池核心线程数目
+          // (2):maxThreadCount 线程池最大线程数目
+          // (3):maxWaitSeconds 当前线程等待maxWaitSeconds毫秒后仍然接收不到新来的任务就会自杀
+          // (4):第四个参数需要传入一个并发队列接口的子实现类对象
+          StretchableThreadPool pool = new StretchableThreadPool(5, 10,
+                  3000, new LinkedBlockingDeque<>());
+  		
+          // 2.调用createNewWork方法传入实现了Runnable接口的对象
+          pool.createNewWork(new ActualWork(10));
+          Thread.sleep(5 * 1000);
+          log.info("all work finished");
+      }
+  }
+  
+  @Data
+  @Slf4j
+  @AllArgsConstructor
+  class ActualWork implements Runnable {
+      private Integer workId;
+  
+      @Override
+      public void run() {
+          // 1.工作时打印当前任务的ID号
+          log.info("work {} run in the thread pool", workId);
+  
+          // 2.当前线程睡上5s（模拟当前线程处理该任务5s）
+          try {
+              Thread.sleep(5 * 1000);
+          } catch (InterruptedException e) {
+              log.error(e.getMessage());
+          }
+  
+          // 3.当前任务结束
+          log.info("work {} end", workId);
+      }
+  }
+  ```
+
+## Java 可伸缩线程池最初版本 (StretchableThreadPool)
 
 ### 🛠 食用方法
 
