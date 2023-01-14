@@ -10,11 +10,16 @@ import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
 public class StretchableThreadPool {
-
     /**
      * 堵塞任务队列
      */
     private BlockingQueue<Runnable> workQueue;
+
+    /**
+     * 一个线程等待多少毫秒仍然没有任务就自杀
+     */
+    private long maxWaitMilliseconds;
+
     /**
      * 线程核心数
      */
@@ -25,55 +30,48 @@ public class StretchableThreadPool {
      */
     private int maxThreadCount;
 
+
     /**
      * 当前线程数量
      */
     private AtomicInteger nowThreadCount;
 
-
-    /**
-     * 一个线程等待多少毫秒仍然没有任务就自杀
-     */
-    private long maxWaitMilliseconds;
-
     /**
      * 线程名称递增ID号
      */
-    private AtomicInteger threadIncrementId;
-
+    private AtomicInteger threadIncrementThreadName;
 
     /**
      * 线程锁用来锁住线程销毁，避免销毁的线程超出预期
      */
     private ReentrantLock lock;
 
-
     /**
-     *
-     * @param coreThreadCount 核心线程数量
-     * @param maxThreadCount 最大线程数量
-     * @param maxWaitMilliseconds 线程等待多长时间没有任务后死掉
-     * @param workQueue 队列
+     * @param coreThreadCount     核心线程数量
+     * @param maxThreadCount      最大线程数量
+     * @param maxWaitMilliseconds 线程等待多长时间没有任务后自杀
+     * @param workQueue           阻塞队列
      */
     public StretchableThreadPool(int coreThreadCount, int maxThreadCount, long maxWaitMilliseconds, BlockingQueue<Runnable> workQueue) {
         if (coreThreadCount > maxThreadCount) {
-            throw new IllegalArgumentException("核心线程数量不能大于最大线程数量");
+            log.error("核心线程数量不能大于最大线程数量");
         }
 
+        // 初始化线程池参数
         this.coreThreadCount = coreThreadCount;
         this.maxThreadCount = maxThreadCount;
         this.maxWaitMilliseconds = maxWaitMilliseconds;
-        this.nowThreadCount = new AtomicInteger(0);
-        this.threadIncrementId = new AtomicInteger(0);
         this.workQueue = workQueue;
+
+        // 初始化锁和线程池中的记录变量
+        this.nowThreadCount = new AtomicInteger(0);
+        this.threadIncrementThreadName = new AtomicInteger(0);
         this.lock = new ReentrantLock();
 
-        /*
-         * 500毫秒判断一次是否需要扩容线程
-         */
+        // 500毫秒判断一次是否需要扩容线程（单独开一个监控线程用于监控扩容条件）
         this.startThreadsToExpandCapacity(500);
 
-        // 扩容
+        // 创建核心线程数量的线程用于执行真正要执行的任务
         for (int i = 0; i < coreThreadCount; ++i) {
             this.createNewThread();
         }
@@ -93,77 +91,77 @@ public class StretchableThreadPool {
     /**
      * 线程池中每个线程真正在执行的方法
      */
-    private  void workerFunction() {
+    private void workerFunction() {
         while (true) {
             try {
-                //获取任务并等待，如果等待的时间超过设定的时间没有任务就需要判断是否销毁线程了
+                // 尝试获取任务并等待，如果等待的时间超过设定的时间没有任务就需要判断是否销毁线程了
                 Runnable workToDo = workQueue.poll(maxWaitMilliseconds, TimeUnit.MILLISECONDS);
+
+                // 等待超时的情况（没取到任务）
                 if (workToDo == null) {
-                    //双重校验锁
+
+                    // 双重校验自杀条件，确保安全自杀，线程池线程数量不会小于核心线程数
                     if (nowThreadCount.get() > coreThreadCount) {
-                        /*
-                         * 尝试去加锁，如果加锁失败那就再次循环不去等待，防止同一时间内大量线程被销毁
-                         * 原本想用synchronized来着，但判断不了是否被加锁过了
-                         */
-                        boolean bool = this.lock.tryLock();
-                        if (bool) {
+                        // 尝试去加锁，如果加锁失败那就再次循环不去等待，防止同一时间内大量线程被销毁
+                        boolean lockedSuccess = lock.tryLock();
+
+                        // 加锁成功，再次判断是否满足自杀条件
+                        if (lockedSuccess) {
+
+                            // 满足自杀条件，线程自杀，解锁
                             if (nowThreadCount.get() > coreThreadCount) {
                                 log.info("* thread {} end, left {} threads in pool", Thread.currentThread().getName(), nowThreadCount.decrementAndGet());
-                                this.lock.unlock();
+                                lock.unlock();
                                 break;
                             }
-                            this.lock.unlock();
+
+                            // 不满足自杀条件就解锁继续循环
+                            lock.unlock();
                         }
                     }
                     continue;
                 }
+
+                // 等待没有超时（取到了任务就开始执行）
                 log.info("thread {} work for function: {}}", Thread.currentThread().getName(), workToDo);
                 workToDo.run();
+
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.getMessage());
             }
         }
     }
 
     private void createNewThread() {
         nowThreadCount.incrementAndGet();
-        Thread thread = new Thread(this::workerFunction, String.valueOf(threadIncrementId.incrementAndGet()));
-        thread.start();
+        Thread t = new Thread(this::workerFunction, String.valueOf(threadIncrementThreadName.incrementAndGet()));
+        t.start();
     }
 
-
+    // 中控线程
     /**
-     * 我理解的应该是一个任务等待多长时间后没有被消费，在去扩容线程，不能直接扩容
+     * 当一个任务等待waitMilliseconds时间后没有被消费且等待后任务队列容量超过线程池最大数量后再扩容
      *
-     * @param waitMilliseconds 等待毫秒
+     * @param waitMilliseconds 等待毫秒数
      */
     private void startThreadsToExpandCapacity(long waitMilliseconds) {
         new Thread(() -> {
             while (true) {
                 try {
-                    //进行等待
+                    // 当前线程先等一等看看任务会不会被迅速消费
                     TimeUnit.MILLISECONDS.sleep(waitMilliseconds);
-
-                    //等待后的任务容量
+                    // 获取等待后的任务容量
                     int afterSize = workQueue.size();
-
-                    /*
-                     * 当队列容量超过线程最大数量后在扩容
-                     * 得任务多一些在扩容，要不很有可能任务很快就被消费完了
-                     * 这个扩容条件还需要在优化...
-                     */
+                    // 如果可以扩容线程池则扩容
                     if (afterSize > this.maxThreadCount) {
-                        //判断是否能扩容线程，
                         if (this.nowThreadCount.get() + 1 <= this.maxThreadCount) {
                             this.createNewThread();
                         }
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.error(e.getMessage());
                 }
             }
         }).start();
     }
-
-
 }

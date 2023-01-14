@@ -10,32 +10,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.concurrent.LinkedBlockingDeque;
 
 @Slf4j
-//@SpringBootTest
+@SpringBootTest
 class ThreadPoolApplicationTest {
 
     @Test
     public void testStretchablePool() throws InterruptedException {
-        StretchableThreadPool pool = new StretchableThreadPool(5, 15,
-                2, new LinkedBlockingDeque<>());
-
+        StretchableThreadPool pool = new StretchableThreadPool(5, 10,
+                3000, new LinkedBlockingDeque<>());
 
         for (int i = 0; i < 30; i++) {
-            pool.createNewWork(new ActualWork(i));
+            pool.createNewWork(new ActualWork(i + 1));
             Thread.sleep(100);
         }
 
-        // 4.等待15s测试彻底结束
-        Thread.sleep(150 * 1000);
+        Thread.sleep(30 * 1000);
         log.info("all work finished");
     }
-
-
-    /*@Test
-    public void howToUse() {
-        StretchableThreadPool pool = new StretchableThreadPool();
-        pool.initThreadPool(5, 15, 3, 5);
-        pool.createNewWork(new ActualWork(10));
-    }*/
 }
 
 
