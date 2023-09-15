@@ -4,11 +4,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @SpringBootTest
 class ThreadPoolApplicationTest {
+
     @Slf4j
     private static final class ActualWork implements Runnable {
         @Override
